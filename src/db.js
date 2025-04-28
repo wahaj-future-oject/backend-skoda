@@ -5,9 +5,16 @@ require('dotenv').config();
 function getDatabaseConfig() {
   if (process.env.PLATFORM_RELATIONSHIPS) {
     try {
+      console.log('Found PLATFORM_RELATIONSHIPS environment variable');
       const relationships = JSON.parse(Buffer.from(process.env.PLATFORM_RELATIONSHIPS, 'base64').toString());
+      console.log('Parsed relationships:', JSON.stringify(relationships, null, 2));
+      
+      if (!relationships.database || !relationships.database[0]) {
+        throw new Error('No database relationship found in PLATFORM_RELATIONSHIPS');
+      }
+      
       const dbRelation = relationships.database[0];
-      return {
+      const config = {
         host: dbRelation.host,
         port: dbRelation.port,
         user: dbRelation.username,
@@ -17,11 +24,23 @@ function getDatabaseConfig() {
         connectionLimit: 10,
         queueLimit: 0
       };
+      
+      console.log('Using Upsun database configuration:', {
+        host: config.host,
+        port: config.port,
+        user: config.user,
+        database: config.database
+      });
+      
+      return config;
     } catch (error) {
       console.error('Error parsing database configuration:', error);
+      console.error('PLATFORM_RELATIONSHIPS value:', process.env.PLATFORM_RELATIONSHIPS);
+      throw error; // Re-throw the error to prevent silent fallback
     }
   }
 
+  console.log('Using local database configuration');
   // Fallback to local configuration
   return {
     host: process.env.DB_HOST || 'localhost',
