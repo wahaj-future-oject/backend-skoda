@@ -1,0 +1,43 @@
+name: skoda-visualizer
+type: nodejs:18
+
+build:
+    flavor: none
+
+relationships:
+    mysql:
+        service: mysql
+        endpoint: mysql
+
+hooks:
+    build: |
+        npm install
+    deploy: |
+        npm run build
+
+web:
+    commands:
+        start: node src/server.js
+    locations:
+        "/":
+            root: "public"
+            passthru: true
+        "/uploads":
+            root: "uploads"
+            allow: true
+        "/ThumbnailImages":
+            root: "ThumbnailImages"
+            allow: true
+
+disk: 1024
+
+mounts:
+    uploads:
+        source: local
+        source_path: uploads
+    ThumbnailImages:
+        source: local
+        source_path: ThumbnailImages
+    data:
+        source: local
+        source_path: data 
