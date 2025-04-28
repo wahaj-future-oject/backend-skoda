@@ -1,21 +1,42 @@
 const mysql = require('mysql2/promise');
 require('dotenv').config();
 
-// Parse database credentials from Upsun environment
-const credentials = process.env.PLATFORM_RELATIONSHIPS ? 
-  JSON.parse(process.env.PLATFORM_RELATIONSHIPS).database[0].host : null;
+// Function to get database config from Upsun environment
+function getDatabaseConfig() {
+  if (process.env.PLATFORM_RELATIONSHIPS) {
+    try {
+      const relationships = JSON.parse(Buffer.from(process.env.PLATFORM_RELATIONSHIPS, 'base64').toString());
+      const dbRelation = relationships.database[0];
+      return {
+        host: dbRelation.host,
+        port: dbRelation.port,
+        user: dbRelation.username,
+        password: dbRelation.password,
+        database: dbRelation.path,
+        waitForConnections: true,
+        connectionLimit: 10,
+        queueLimit: 0
+      };
+    } catch (error) {
+      console.error('Error parsing database configuration:', error);
+    }
+  }
 
-// Create connection pool
-const pool = mysql.createPool({
-  host: credentials ? credentials.host : process.env.DB_HOST || 'localhost',
-  port: credentials ? credentials.port : process.env.DB_PORT || 3306,
-  user: credentials ? credentials.username : process.env.DB_USER || 'wahaj',
-  password: credentials ? credentials.password : process.env.DB_PASSWORD || '1234',
-  database: credentials ? credentials.path : process.env.DB_NAME || 'frontify_logs',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
-});
+  // Fallback to local configuration
+  return {
+    host: process.env.DB_HOST || 'localhost',
+    port: process.env.DB_PORT || 3306,
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'main',
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0
+  };
+}
+
+// Create the connection pool using the configuration
+const pool = mysql.createPool(getDatabaseConfig());
 
 // Initialize database tables
 async function initializeDatabase() {
