@@ -9,8 +9,20 @@ const axios = require('axios');
 require('dotenv').config();
 const { pool, initializeDatabase, logApiCall, getUserLogs, updateDatabaseSchema } = require('./db');
 
+// Log environment variables (excluding sensitive data)
+console.log('Environment variables:', {
+  NODE_ENV: process.env.NODE_ENV,
+  PORT: process.env.PORT,
+  PLATFORM_APP_DIR: process.env.PLATFORM_APP_DIR,
+  PLATFORM_APPLICATION_NAME: process.env.PLATFORM_APPLICATION_NAME,
+  PLATFORM_RELATIONSHIPS: process.env.PLATFORM_RELATIONSHIPS ? 'present' : 'not present'
+});
+
 const app = express();
 const port = process.env.PORT || 5000;
+
+// Log the port we're trying to use
+console.log(`Attempting to start server on port ${port}`);
 
 // Initialize Replicate client
 const replicate = new Replicate({
@@ -1762,21 +1774,35 @@ app.post('/api/replicate-webhook', async (req, res) => {
 // Start server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, async () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  
-  // Initialize directories
-  await ensureThumbnailDirectory();
-  ensureUploadDirectory();
-  
-  // Run initial thumbnails cleanup
-  await cleanupThumbnails();
-  
-  // Validate API token and log models
-  validateApiToken();
-  
-  console.log(`Upload directory: ${UPLOADS_DIR}`);
-  console.log(`Thumbnail directory: ${THUMBNAIL_DIR}`);
+  try {
+    console.log(`Server running on port ${PORT}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    
+    // Initialize directories
+    await ensureThumbnailDirectory();
+    ensureUploadDirectory();
+    
+    // Run initial thumbnails cleanup
+    await cleanupThumbnails();
+    
+    // Validate API token and log models
+    validateApiToken();
+    
+    console.log(`Upload directory: ${UPLOADS_DIR}`);
+    console.log(`Thumbnail directory: ${THUMBNAIL_DIR}`);
+
+    // Initialize database
+    try {
+      await initializeDatabase();
+      console.log('Database initialized successfully');
+    } catch (dbError) {
+      console.error('Failed to initialize database:', dbError);
+      // Don't exit, let the application continue even if DB init fails
+    }
+  } catch (error) {
+    console.error('Error during server startup:', error);
+    // Don't exit, let the application continue even if some initialization fails
+  }
 });
 
 // Run cleanup more frequently (every 15 minutes)
