@@ -39,7 +39,6 @@ applications:
 services:
     mysql:
         type: mariadb:10.4
-        disk: 512
         configuration:
             schemas:
                 - main
