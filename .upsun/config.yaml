@@ -4,7 +4,7 @@ applications:
         build:
             flavor: none
         relationships:
-            database: "mysql:mariadb"
+            database: "mysql:mysql"
         hooks:
             build: |
                 npm install
