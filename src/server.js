@@ -131,6 +131,28 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 // Add middleware to the app
 app.use(getUserFromRequest);
 
+// Test database connection endpoint
+app.get('/api/test-db', async (req, res) => {
+  try {
+    const connection = await pool.getConnection();
+    await connection.ping();
+    connection.release();
+    res.json({ 
+      status: 'success', 
+      message: 'Database connection successful',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Database connection test failed:', error);
+    res.status(500).json({ 
+      status: 'error', 
+      message: 'Database connection failed',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Constants and configurations
 const ASPECT_RATIO_MAP = {
   square: "1:1",
