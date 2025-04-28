@@ -19,10 +19,14 @@ console.log('Environment variables:', {
 });
 
 const app = express();
-const port = process.env.PORT || 5000;
 
-// Log the port we're trying to use
-console.log(`Attempting to start server on port ${port}`);
+// Get port from Upsun environment or fallback to default
+const PORT = process.env.PORT || process.env.PLATFORM_PORT || 8888;
+console.log('Starting server with configuration:', {
+  port: PORT,
+  platformPort: process.env.PLATFORM_PORT,
+  nodeEnv: process.env.NODE_ENV
+});
 
 // Initialize Replicate client
 const replicate = new Replicate({
@@ -1772,8 +1776,7 @@ app.post('/api/replicate-webhook', async (req, res) => {
 });
 
 // Start server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, async () => {
+app.listen(PORT, '0.0.0.0', async () => {
   try {
     console.log(`Server running on port ${PORT}`);
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
