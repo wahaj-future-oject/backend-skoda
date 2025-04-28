@@ -24,7 +24,6 @@ applications:
                 "/ThumbnailImages":
                     root: "ThumbnailImages"
                     allow: true
-        disk: 2048
         mounts:
             uploads:
                 source: local
@@ -39,7 +38,6 @@ applications:
 services:
     mysql:
         type: mysql:8.0
-        disk: 2048
 
 routes:
     "https://{default}/":
