@@ -37,7 +37,15 @@ applications:
 
 services:
     mysql:
-        type: mysql:8.0
+        type: mariadb:10.4
+        configuration:
+            schemas:
+                - main
+            endpoints:
+                mysql:
+                    default_schema: main
+                    privileges:
+                        main: admin
 
 routes:
     "https://{default}/":
