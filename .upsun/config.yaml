@@ -4,12 +4,12 @@ applications:
         build:
             flavor: none
         relationships:
-            database: "mysql:mysql"
+            database: "mysql:mariadb"
         hooks:
             build: |
                 npm install
             deploy: |
-                npm run build
+                echo "No deploy hook required"
         web:
             commands:
                 start: node src/server.js
