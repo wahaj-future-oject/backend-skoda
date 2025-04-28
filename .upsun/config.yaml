@@ -15,15 +15,16 @@ applications:
                 start: node src/server.js
             locations:
                 "/":
-                    root: "public"
                     passthru: true
                     allow: true
                 "/uploads":
                     root: "uploads"
                     allow: true
+                    scripts: false
                 "/ThumbnailImages":
                     root: "ThumbnailImages"
                     allow: true
+                    scripts: false
         mounts:
             uploads:
                 source: local
@@ -38,6 +39,7 @@ applications:
 services:
     mysql:
         type: mariadb:10.4
+        disk: 512
         configuration:
             schemas:
                 - main
