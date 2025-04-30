@@ -1797,6 +1797,272 @@ app.post('/api/replicate-webhook', async (req, res) => {
   }
 });
 
+// Add this endpoint before the app.listen() call
+app.post('/api/upscale', upload.single('image'), async (req, res) => {
+  console.log('Received upscale request');
+  try {
+    if (!req.file) {
+      throw new Error('No file uploaded');
+    }
+
+    // Get scale factor (2x, 4x, or 6x)
+    const scale = req.body.scale || '2';
+    if (!['2', '4', '6'].includes(scale)) {
+      throw new Error('Invalid scale factor. Must be 2, 4, or 6');
+    }
+
+    // Get the local file path
+    const localFilePath = path.join(UPLOADS_DIR, req.file.filename);
+    console.log(`Processing file for upscaling: ${localFilePath}`);
+
+    // Get user info from request headers
+    const userInfo = {
+      id: req.headers['x-user-id'] || 'anonymous',
+      email: req.headers['x-user-email'] || 'anonymous',
+      name: req.headers['x-user-name'] || 'Anonymous User'
+    };
+
+    // Convert image to data URI
+    const fileBuffer = await fsPromises.readFile(localFilePath);
+    const dataUri = `data:image/jpeg;base64,${fileBuffer.toString('base64')}`;
+    console.log('Image converted to data URI');
+
+    // Call Real-ESRGAN model via Replicate API
+    console.log(`Creating upscale prediction with scale factor: ${scale}x`);
+    const prediction = await replicate.predictions.create({
+      version: "42fed1c4974146d4d2414e2be2c5277c7fcf05fcc3a73abf41610695738c1d7b",
+      input: {
+        image: dataUri,
+        scale: parseInt(scale),
+        face_enhance: true
+      }
+    });
+
+    // Poll for the result
+    let result = prediction;
+    let attempts = 0;
+    const maxAttempts = 300; // Poll for up to 5 minutes
+
+    while (result.status !== 'succeeded' && result.status !== 'failed' && attempts < maxAttempts) {
+      console.log(`Polling attempt ${attempts + 1}/${maxAttempts}. Status: ${result.status}`);
+      
+      // Wait 1 second between polls
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Get updated prediction status
+      try {
+        result = await replicate.predictions.get(prediction.id);
+      } catch (pollingError) {
+        console.error('Error during polling:', pollingError.message);
+        if (attempts < maxAttempts - 1) continue;
+        throw pollingError;
+      }
+      
+      attempts++;
+    }
+
+    if (result.status === 'failed') {
+      throw new Error(`Upscaling failed: ${result.error || 'Unknown error'}`);
+    }
+
+    if (attempts >= maxAttempts) {
+      throw new Error('Upscaling timed out');
+    }
+
+    // Log successful upscale for billing
+    await logApiCall(
+      userInfo,
+      '/api/upscale',
+      'POST',
+      200,
+      { scale, filename: req.file.filename },
+      { success: true, upscaledUrl: result.output },
+      null
+    );
+
+    // Clean up the original uploaded file
+    try {
+      await fsPromises.unlink(localFilePath);
+      console.log('Cleaned up original file:', localFilePath);
+    } catch (cleanupError) {
+      console.warn('Failed to clean up original file:', cleanupError);
+    }
+
+    res.json({
+      success: true,
+      predictionId: prediction.id,
+      upscaledUrl: result.output,
+      metadata: {
+        originalName: req.file.originalname,
+        scale: `${scale}x`,
+        processingTime: `${attempts}s`
+      }
+    });
+
+  } catch (error) {
+    console.error('Upscale error:', error);
+    res.status(500).json({
+      error: 'Failed to upscale image',
+      details: error.message
+    });
+
+    // Log failed attempt
+    try {
+      await logApiCall(
+        req.user,
+        '/api/upscale',
+        'POST',
+        500,
+        { scale: req.body.scale },
+        null,
+        error.message
+      );
+    } catch (logError) {
+      console.error('Failed to log error:', logError);
+    }
+  }
+});
+
+// Add this endpoint before the app.listen() call
+app.post('/api/convert-to-svg', upload.single('image'), async (req, res) => {
+  console.log('Received SVG conversion request');
+  try {
+    if (!req.file) {
+      throw new Error('No file uploaded');
+    }
+
+    // Get the local file path
+    const localFilePath = path.join(UPLOADS_DIR, req.file.filename);
+    console.log(`Processing file for SVG conversion: ${localFilePath}`);
+
+    // Get user info from request headers
+    const userInfo = {
+      id: req.headers['x-user-id'] || 'anonymous',
+      email: req.headers['x-user-email'] || 'anonymous',
+      name: req.headers['x-user-name'] || 'Anonymous User'
+    };
+
+    // Convert image to data URI
+    const fileBuffer = await fsPromises.readFile(localFilePath);
+    const dataUri = `data:image/jpeg;base64,${fileBuffer.toString('base64')}`;
+    console.log('Image converted to data URI');
+
+    // Call image-to-svg model via Replicate API
+    console.log('Creating SVG conversion prediction');
+    const prediction = await replicate.predictions.create({
+      version: "30d4c9ce47172f8c2bd69ec384e12c95670abd8de3adfd3698e6b8eab2dcaa3e",
+      input: {
+        image: dataUri,
+        processing_res: req.body.processing_res || "1024",
+        vectorize_res: req.body.vectorize_res || "1024",
+        stroke_detail: req.body.stroke_detail || "basic",
+        stroke_width_base: parseFloat(req.body.stroke_width_base) || 1,
+        stroke_width_scaling: parseFloat(req.body.stroke_width_scaling) || 1.5,
+        stroke_endpoint_length: parseFloat(req.body.stroke_endpoint_length) || 1,
+        color_mode: req.body.color_mode || "color",
+        merge_paths: req.body.merge_paths !== 'false',
+        filter_speckle: parseInt(req.body.filter_speckle) || 4
+      }
+    });
+
+    // Poll for the result
+    let result = prediction;
+    let attempts = 0;
+    const maxAttempts = 300; // Poll for up to 5 minutes
+
+    while (result.status !== 'succeeded' && result.status !== 'failed' && attempts < maxAttempts) {
+      console.log(`Polling attempt ${attempts + 1}/${maxAttempts}. Status: ${result.status}`);
+      
+      // Wait 1 second between polls
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Get updated prediction status
+      try {
+        result = await replicate.predictions.get(prediction.id);
+      } catch (pollingError) {
+        console.error('Error during polling:', pollingError.message);
+        if (attempts < maxAttempts - 1) continue;
+        throw pollingError;
+      }
+      
+      attempts++;
+    }
+
+    if (result.status === 'failed') {
+      throw new Error(`SVG conversion failed: ${result.error || 'Unknown error'}`);
+    }
+
+    if (attempts >= maxAttempts) {
+      throw new Error('SVG conversion timed out');
+    }
+
+    // Log successful conversion for billing
+    await logApiCall(
+      userInfo,
+      '/api/convert-to-svg',
+      'POST',
+      200,
+      { 
+        filename: req.file.filename,
+        settings: {
+          processing_res: req.body.processing_res,
+          vectorize_res: req.body.vectorize_res,
+          stroke_detail: req.body.stroke_detail,
+          color_mode: req.body.color_mode
+        }
+      },
+      { success: true, svgUrl: result.output },
+      null
+    );
+
+    // Clean up the original uploaded file
+    try {
+      await fsPromises.unlink(localFilePath);
+      console.log('Cleaned up original file:', localFilePath);
+    } catch (cleanupError) {
+      console.warn('Failed to clean up original file:', cleanupError);
+    }
+
+    res.json({
+      success: true,
+      predictionId: prediction.id,
+      svgUrl: result.output,
+      metadata: {
+        originalName: req.file.originalname,
+        processingTime: `${attempts}s`,
+        settings: {
+          processing_res: req.body.processing_res || "1024",
+          vectorize_res: req.body.vectorize_res || "1024",
+          stroke_detail: req.body.stroke_detail || "basic",
+          color_mode: req.body.color_mode || "color"
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('SVG conversion error:', error);
+    res.status(500).json({
+      error: 'Failed to convert to SVG',
+      details: error.message
+    });
+
+    // Log failed attempt
+    try {
+      await logApiCall(
+        req.user,
+        '/api/convert-to-svg',
+        'POST',
+        500,
+        { filename: req.file?.filename },
+        null,
+        error.message
+      );
+    } catch (logError) {
+      console.error('Failed to log error:', logError);
+    }
+  }
+});
+
 // Start server
 app.listen(PORT, '0.0.0.0', async () => {
   try {
